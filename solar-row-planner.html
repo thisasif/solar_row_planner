@@ -1,0 +1,484 @@
+<title>Solar Row Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: drafting-sheet. Narrow input column on the left, drawing and numbers on the right; stacks on phones.
+   Palette: cool blueprint paper, ink-blue panels, amber for the sun, red-orange for summer heat. */
+:root {
+  --paper: #E8EDF0;
+  --sheet: #F6F9FA;
+  --field: #FFFFFF;
+  --ink: #12212B;
+  --ink2: #4E616D;
+  --rule: #C2CED5;
+  --panel: #1B4F8C;
+  --on-panel: #FFFFFF;
+  --sun: #D98500;
+  --heat: #CF3F28;
+  --shade: rgba(217, 133, 0, 0.17);
+  --warn-bg: #FFF1D6;
+  --warn-ink: #6B4200;
+  --f-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --f-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0D171E; --sheet: #14212A; --field: #0E1A21; --ink: #E3ECF0; --ink2: #93A8B4; --rule: #2A3B46;
+    --panel: #6CA8EC; --on-panel: #0D171E; --sun: #F2A93B; --heat: #FF7B5D; --shade: rgba(242, 169, 59, 0.16);
+    --warn-bg: #3A2B0E; --warn-ink: #F7D9A0; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0D171E; --sheet: #14212A; --field: #0E1A21; --ink: #E3ECF0; --ink2: #93A8B4; --rule: #2A3B46;
+  --panel: #6CA8EC; --on-panel: #0D171E; --sun: #F2A93B; --heat: #FF7B5D; --shade: rgba(242, 169, 59, 0.16);
+  --warn-bg: #3A2B0E; --warn-ink: #F7D9A0; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(34px, 5vw, 52px); line-height: 1; margin: 0 0 8px; letter-spacing: .01em; text-wrap: balance; }
+header p { margin: 0; color: var(--ink2); max-width: 64ch; }
+.grid { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 24px; margin-top: 24px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 20px; min-width: 0; }
+form.card { display: grid; gap: 22px; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; min-width: 0; }
+legend { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink2); padding: 0; margin-bottom: 10px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+label.f { display: grid; gap: 4px; font-size: 13px; font-weight: 500; min-width: 0; }
+label.f span.u { color: var(--ink2); font-weight: 400; font-family: var(--f-mono); font-size: 12px; }
+input[type=text], input[type=number] {
+  width: 100%; min-width: 0; font: 500 16px var(--f-mono); color: var(--ink); background: var(--field);
+  border: 1px solid var(--rule); border-radius: 4px; padding: 9px 10px;
+}
+input:focus-visible, button:focus-visible, .mode input:focus-visible + .mode-body { outline: 2px solid var(--panel); outline-offset: 2px; }
+.hint { font-size: 12.5px; color: var(--ink2); margin: 0; min-height: 1.3em; }
+.inline { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+button { font: 600 14px var(--f-body); cursor: pointer; border-radius: 4px; padding: 9px 12px; border: 1px solid var(--rule); background: var(--field); color: var(--ink); }
+button.primary { background: var(--panel); color: var(--on-panel); border-color: var(--panel); font-size: 15px; padding: 12px 14px; }
+button:hover { filter: brightness(1.07); }
+
+.modes { display: grid; gap: 8px; }
+.mode { display: block; cursor: pointer; }
+.mode input { position: absolute; opacity: 0; pointer-events: none; }
+.mode-body { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 4px; background: var(--field); }
+.mode-body b { font-family: var(--f-display); font-size: 20px; letter-spacing: .02em; line-height: 1.1; }
+.mode-body .t { font-family: var(--f-mono); font-size: 14px; text-align: right; }
+.mode-body small { grid-column: 1 / -1; color: var(--ink2); font-size: 12.5px; }
+.mode input:checked + .mode-body { border-color: var(--panel); box-shadow: inset 0 0 0 1px var(--panel); background: var(--sheet); }
+
+.out { display: grid; gap: 20px; min-width: 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.tile .k { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); }
+.tile .v { font-family: var(--f-display); font-weight: 700; font-size: 38px; line-height: 1.05; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.tile .v small { font-size: 18px; font-weight: 600; color: var(--ink2); margin-left: 3px; }
+.tile .s { font-size: 12.5px; color: var(--ink2); margin-top: 2px; }
+
+.figure h2, .card h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; letter-spacing: .02em; margin: 0 0 12px; }
+.scroll { overflow-x: auto; }
+.scroll > svg { display: block; min-width: 760px; width: 100%; height: auto; }
+svg .ground { stroke: var(--ink); stroke-width: 2; }
+svg .hatch { stroke: var(--ink2); stroke-width: 1; opacity: .55; }
+svg .post { stroke: var(--ink2); stroke-width: 2; }
+svg .pnl { fill: var(--panel); stroke: var(--panel); stroke-width: 1; stroke-linejoin: round; }
+svg .face { stroke: var(--on-panel); stroke-width: 1.5; opacity: .85; }
+svg .dim { stroke: var(--ink2); stroke-width: 1; fill: none; }
+svg .ext { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 3 3; opacity: .7; }
+svg .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 6 4; opacity: .8; }
+svg .tick { stroke: var(--ink2); stroke-width: 1.5; }
+svg .t { font: 500 13px var(--f-mono); fill: var(--ink); }
+svg .t2 { font: 500 11.5px var(--f-mono); fill: var(--ink2); letter-spacing: .08em; }
+svg .tw { font: 500 13px var(--f-mono); fill: var(--sun); }
+svg .th { font: 500 13px var(--f-mono); fill: var(--heat); }
+svg .rw { stroke: var(--sun); stroke-width: 2.5; fill: none; }
+svg .rs { stroke: var(--heat); stroke-width: 2.5; fill: none; stroke-dasharray: 8 5; }
+svg .arc-w { stroke: var(--sun); stroke-width: 1.5; fill: none; }
+svg .arc-p { stroke: var(--ink); stroke-width: 1.5; fill: none; }
+svg .shade { fill: var(--shade); }
+svg .dot { fill: var(--sun); }
+svg .mk-w { fill: var(--sun); }
+svg .mk-h { fill: var(--heat); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink2); }
+.legend li { display: flex; align-items: center; gap: 8px; }
+.sw { width: 26px; height: 0; border-top: 3px solid var(--sun); }
+.sw.h { border-top: 3px dashed var(--heat); }
+.sw.s { height: 12px; border: 0; background: var(--shade); outline: 1px solid var(--sun); width: 22px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl { overflow-x: auto; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { font-family: var(--f-mono); font-weight: 500; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); }
+td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+tr.sel td { font-weight: 600; }
+tr.sel td:first-child::before { content: "\25B8 "; color: var(--panel); }
+tr.pick { cursor: pointer; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 1100px) { .two { grid-template-columns: minmax(0, 1fr); } }
+dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; font-size: 14px; }
+dt { color: var(--ink2); }
+dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+ul.notes { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; color: var(--ink2); max-width: 70ch; }
+.warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 4px; padding: 10px 12px; font-size: 14px; }
+.err { color: var(--heat); font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) { button { transition: filter .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Solar Row Planner</h1>
+    <p>Enter your district and panel details. The page works out how far apart the rows must be so the winter shade-free window you want is kept, and draws the side view with every dimension.</p>
+  </header>
+
+  <div class="grid">
+    <form class="card" id="form" autocomplete="off">
+      <fieldset>
+        <legend>1 · Location</legend>
+        <label class="f">District
+          <input type="text" id="district" list="districts" value="Dhaka" placeholder="Type or pick a district">
+        </label>
+        <datalist id="districts"></datalist>
+        <label class="f">Latitude <span class="u">degrees, north positive, editable</span>
+          <input type="number" id="lat" step="0.01" value="23.81">
+        </label>
+        <p class="hint" id="locHint"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>2 · Panel size (inches)</legend>
+        <div class="row">
+          <label class="f">Length <span class="u">along the slope</span>
+            <input type="number" id="len" min="1" step="0.1" value="65">
+          </label>
+          <label class="f">Width <span class="u">along the row</span>
+            <input type="number" id="wid" min="1" step="0.1" value="39.5">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>3 · Mounting</legend>
+        <div class="inline">
+          <label class="f">Tilt angle <span class="u">degrees from horizontal</span>
+            <input type="number" id="tilt" min="0" max="85" step="0.5" value="24">
+          </label>
+          <button type="button" id="tiltLat" title="Set the tilt equal to the latitude">Use latitude</button>
+        </div>
+        <label class="f">Low edge clearance <span class="u">ground to lower edge, inches</span>
+          <input type="number" id="clr" min="0" step="0.5" value="24">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>4 · Shade-free hours in winter</legend>
+        <div class="modes" id="modes">
+          <label class="mode"><input type="radio" name="mode" value="9" checked>
+            <span class="mode-body"><b>Best</b><span class="t">9 AM – 3 PM</span><small>6 hours free of shade. Balanced land use.</small></span></label>
+          <label class="mode"><input type="radio" name="mode" value="8">
+            <span class="mode-body"><b>Performance</b><span class="t">8 AM – 4 PM</span><small>8 hours free of shade. Rows spread furthest apart.</small></span></label>
+          <label class="mode"><input type="radio" name="mode" value="10">
+            <span class="mode-body"><b>Power</b><span class="t">10 AM – 2 PM</span><small>4 hours free of shade. Rows packed closest.</small></span></label>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="primary">Draw diagram</button>
+      <p class="hint err" id="msg" role="alert"></p>
+    </form>
+
+    <div class="out" id="out">
+      <div class="tiles" id="tiles"></div>
+      <div class="card figure">
+        <h2>Side view, looking west</h2>
+        <div class="scroll"><svg id="svg" viewBox="0 0 1000 550" role="img" aria-label="Side view of two solar panel rows with dimensions"></svg></div>
+        <ul class="legend">
+          <li><span class="sw"></span>Winter sun at the edge of your shade-free window</li>
+          <li><span class="sw h"></span>Summer sun at solar noon</li>
+          <li><span class="sw s"></span>Shadow of the front row</li>
+        </ul>
+      </div>
+      <div class="two">
+        <div class="card">
+          <h2>All three windows</h2>
+          <div class="tbl"><table id="cmp"></table></div>
+          <p class="hint" style="margin-top:10px">Select a row to switch the drawing to that window.</p>
+        </div>
+        <div class="card">
+          <h2>Sun angles used</h2>
+          <dl id="sun"></dl>
+        </div>
+      </div>
+      <div class="card">
+        <h2>How to read this</h2>
+        <ul class="notes" id="notes"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const D2R = Math.PI / 180;
+const DECL = 23.44; // solstice declination, degrees
+
+// [district, latitude, longitude]
+const DISTRICTS = [
+ ["Dhaka",23.81,90.41],["Gazipur",24.00,90.42],["Narayanganj",23.63,90.50],["Narsingdi",23.92,90.72],["Manikganj",23.86,90.00],
+ ["Munshiganj",23.55,90.53],["Tangail",24.25,89.92],["Kishoreganj",24.43,90.78],["Faridpur",23.60,89.84],["Gopalganj",23.01,89.83],
+ ["Madaripur",23.17,90.20],["Rajbari",23.76,89.64],["Shariatpur",23.22,90.35],
+ ["Chattogram",22.36,91.78],["Cox's Bazar",21.45,91.98],["Cumilla",23.46,91.18],["Brahmanbaria",23.96,91.11],["Chandpur",23.23,90.66],
+ ["Feni",23.02,91.40],["Lakshmipur",22.94,90.84],["Noakhali",22.87,91.10],["Khagrachhari",23.12,91.98],["Rangamati",22.65,92.17],["Bandarban",22.19,92.22],
+ ["Sylhet",24.90,91.87],["Moulvibazar",24.48,91.77],["Habiganj",24.38,91.42],["Sunamganj",25.07,91.40],
+ ["Rajshahi",24.37,88.60],["Chapainawabganj",24.60,88.28],["Naogaon",24.80,88.94],["Natore",24.42,89.00],["Pabna",24.00,89.25],
+ ["Sirajganj",24.45,89.70],["Bogura",24.85,89.37],["Joypurhat",25.10,89.02],
+ ["Khulna",22.82,89.55],["Bagerhat",22.65,89.79],["Satkhira",22.72,89.07],["Jashore",23.17,89.21],["Jhenaidah",23.54,89.17],
+ ["Magura",23.49,89.42],["Narail",23.17,89.50],["Kushtia",23.90,89.12],["Chuadanga",23.64,88.85],["Meherpur",23.76,88.63],
+ ["Barishal",22.70,90.37],["Barguna",22.15,90.13],["Bhola",22.69,90.65],["Jhalokati",22.64,90.20],["Patuakhali",22.36,90.33],["Pirojpur",22.58,89.97],
+ ["Rangpur",25.75,89.25],["Dinajpur",25.63,88.64],["Gaibandha",25.33,89.54],["Kurigram",25.81,89.65],["Lalmonirhat",25.92,89.45],
+ ["Nilphamari",25.93,88.86],["Panchagarh",26.34,88.55],["Thakurgaon",26.03,88.46],
+ ["Mymensingh",24.75,90.41],["Jamalpur",24.92,89.94],["Netrokona",24.87,90.73],["Sherpur",25.02,90.02]
+];
+const MODES = { "9": { name: "Best", from: 9, to: 15 }, "8": { name: "Performance", from: 8, to: 16 }, "10": { name: "Power", from: 10, to: 14 } };
+
+const $ = id => document.getElementById(id);
+const norm = s => s.toLowerCase().replace(/[^a-z]/g, "");
+const f1 = x => (Math.round(x * 10) / 10).toFixed(1);
+const inch = x => f1(x) + "″";
+function ftIn(x) { const ft = Math.floor(x / 12 + 1e-9); return ft + " ft " + f1(x - ft * 12) + " in"; }
+function hrLabel(h) { const hh = h % 12 === 0 ? 12 : h % 12; return hh + (h < 12 || h === 24 ? " AM" : " PM"); }
+
+// ---- solar geometry (latitude folded to the northern hemisphere; "equator side" is the side the panels face)
+function sunAt(latAbs, decDeg, hour) {
+  const p = latAbs * D2R, d = decDeg * D2R, h = (hour - 12) * 15 * D2R;
+  const alt = Math.asin(Math.sin(p) * Math.sin(d) + Math.cos(p) * Math.cos(d) * Math.cos(h));
+  const az = Math.atan2(Math.sin(h), Math.sin(p) * Math.cos(h) - Math.cos(p) * Math.tan(d)); // from equator side, toward west
+  return { alt, az };
+}
+// Minimum clear gap between rows so the winter sun never shades the next row inside [from, to].
+function rowGap(latAbs, L, tiltDeg, from, to) {
+  const rise = L * Math.sin(tiltDeg * D2R);
+  let worst = { gap: 0, hour: from, alt: 0, az: 0, prof: 0 };
+  for (let t = from; t <= to + 1e-9; t += 0.02) {
+    const s = sunAt(latAbs, -DECL, t);
+    if (s.alt <= 0.02) return { gap: Infinity };
+    const c = Math.cos(s.az);
+    if (c <= 0.01) continue;
+    const gap = rise * c / Math.tan(s.alt);
+    if (gap > worst.gap) worst = { gap, hour: t, alt: s.alt, az: s.az, prof: Math.atan(Math.tan(s.alt) / c) };
+  }
+  if (worst.gap === 0) { const s = sunAt(latAbs, -DECL, from); worst.alt = s.alt; worst.az = s.az; worst.prof = s.alt; }
+  return worst;
+}
+function solve(inp, from, to) {
+  const latAbs = Math.abs(inp.lat), b = inp.tilt * D2R;
+  const w = rowGap(latAbs, inp.L, inp.tilt, from, to);
+  const F = inp.L * Math.cos(b), rise = inp.L * Math.sin(b);
+  return { ...w, F, rise, H: inp.c + rise, pitch: F + w.gap, gcr: inp.L / (F + w.gap), from, to };
+}
+
+// ---- inputs
+function lookup(name) { const n = norm(name); return DISTRICTS.find(d => norm(d[0]) === n); }
+function fillDistricts() { $("districts").innerHTML = DISTRICTS.map(d => `<option value="${d[0]}">`).join(""); }
+function readInputs() {
+  const inp = { lat: parseFloat($("lat").value), L: parseFloat($("len").value), W: parseFloat($("wid").value),
+    tilt: parseFloat($("tilt").value), c: parseFloat($("clr").value), mode: document.querySelector("input[name=mode]:checked").value };
+  const d = lookup($("district").value);
+  inp.lon = d ? d[2] : null; inp.district = d ? d[0] : null;
+  return inp;
+}
+function validate(i) {
+  if (![i.lat, i.L, i.W, i.tilt, i.c].every(Number.isFinite)) return "Fill in every field with a number.";
+  if (Math.abs(i.lat) > 66) return "Latitude must be between -66 and 66 degrees.";
+  if (i.L <= 0 || i.W <= 0) return "Panel length and width must be above zero.";
+  if (i.tilt < 0 || i.tilt > 85) return "Tilt must be between 0 and 85 degrees.";
+  if (i.c < 0) return "Clearance cannot be negative.";
+  return "";
+}
+
+// ---- drawing
+function arcPath(cx, cy, r, a1, a2) {
+  const p = a => [cx + r * Math.cos(a * D2R), cy - r * Math.sin(a * D2R)];
+  const A = p(a1), B = p(a2);
+  return `M${A[0].toFixed(1)} ${A[1].toFixed(1)} A${r} ${r} 0 0 0 ${B[0].toFixed(1)} ${B[1].toFixed(1)}`;
+}
+function drawSvg(r, inp, sum) {
+  const { L, tilt, c } = inp, b = tilt * D2R, cb = Math.cos(b), sb = Math.sin(b);
+  const { F, rise, H, pitch: D, gap: g } = r;
+  const gy = 410, x0 = 210;
+  const s = Math.min(740 / (D + F), 200 / Math.max(H, 1));
+  const X = w => x0 + w * s, Y = h => gy - h * s;
+  const eqLeft = inp.lat >= 0 ? "SOUTH" : "NORTH", eqRight = inp.lat >= 0 ? "NORTH" : "SOUTH";
+  const o = [];
+
+  const panel = (off, label) => {
+    const x1 = X(off), y1 = Y(c), x2 = X(off + F), y2 = Y(H);
+    const t = Math.max(5, 1.6 * s), ux = sb * t, uy = cb * t;
+    o.push(`<line class="post" x1="${x1}" y1="${y1 + uy}" x2="${x1}" y2="${gy}"/>`);
+    o.push(`<line class="post" x1="${x2}" y1="${y2 + uy}" x2="${x2}" y2="${gy}"/>`);
+    o.push(`<polygon class="pnl" points="${x1},${y1} ${x2},${y2} ${x2 + ux},${y2 + uy} ${x1 + ux},${y1 + uy}"/>`);
+    o.push(`<line class="face" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`);
+    o.push(`<text class="t2" x="${x2 + 8}" y="${y2 - 8}">${label}</text>`);
+  };
+
+  // defs
+  o.push(`<defs><marker id="aw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path class="mk-w" d="M0 0L10 5L0 10z"/></marker>
+  <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path class="mk-h" d="M0 0L10 5L0 10z"/></marker></defs>`);
+
+  // ground and hatch
+  o.push(`<line class="ground" x1="20" y1="${gy}" x2="980" y2="${gy}"/>`);
+  for (let x = 24; x < 980; x += 12) o.push(`<line class="hatch" x1="${x}" y1="${gy}" x2="${x - 8}" y2="${gy + 9}"/>`);
+  o.push(`<text class="t2" x="24" y="${gy - 8}">◂ ${eqLeft}</text><text class="t2" x="976" y="${gy - 8}" text-anchor="end">${eqRight} ▸</text>`);
+
+  // winter limit ray end = lower edge of next row
+  const E = [X(D), Y(c)], pr = r.prof, cp = Math.cos(pr), sp = Math.sin(pr);
+  const len = (g * s) / Math.max(cp, 0.05) + 110;
+  const S = [E[0] - len * cp, E[1] - len * sp];
+  // shadow zone behind the front row
+  o.push(`<polygon class="shade" points="${X(F)},${Y(H)} ${E[0]},${E[1]} ${E[0]},${gy} ${X(F)},${gy}"/>`);
+
+  panel(0, "ROW 1"); panel(D, "ROW 2");
+
+  // summer noon ray
+  const ps = sum.summerAlt, sOnLeft = sum.summerFromEq;
+  const M = [X(F / 2), Y(c + rise / 2)], sl = 170;
+  const SS = [M[0] + (sOnLeft ? -1 : 1) * sl * Math.cos(ps), M[1] - sl * Math.sin(ps)];
+  o.push(`<line class="rs" x1="${SS[0]}" y1="${SS[1]}" x2="${M[0]}" y2="${M[1]}" marker-end="url(#ah)"/>`);
+  o.push(`<text class="th" x="${SS[0]}" y="${SS[1] - 9}" text-anchor="${sOnLeft ? "end" : "start"}">Summer noon ${f1(ps / D2R)}°</text>`);
+
+  // winter ray
+  o.push(`<line class="rw" x1="${S[0]}" y1="${S[1]}" x2="${E[0]}" y2="${E[1]}"/>`);
+  o.push(`<circle class="dot" cx="${E[0]}" cy="${E[1]}" r="4.5"/>`);
+  o.push(`<text class="tw" x="${S[0]}" y="${S[1] - 9}" text-anchor="${(S[0] < 130 || SS[0] < S[0]) ? "start" : "end"}">Winter ${hrLabel(Math.round(r.hour))} limit ${f1(pr / D2R)}°</text>`);
+  // angle arc at ray end
+  const ar = Math.min(46, Math.max(18, g * s * 0.7));
+  if (g * s > 24) {
+    o.push(`<line class="ref" x1="${E[0] - ar - 14}" y1="${E[1]}" x2="${E[0]}" y2="${E[1]}"/>`);
+    o.push(`<path class="arc-w" d="${arcPath(E[0], E[1], ar, 180 - pr / D2R, 180)}"/>`);
+  }
+
+  // tilt arc at front low edge
+  const lx = X(0), ly = Y(c), tr = Math.min(60, Math.max(26, F * s * 0.35));
+  o.push(`<line class="ref" x1="${lx}" y1="${ly}" x2="${lx + tr + 22}" y2="${ly}"/>`);
+  if (tilt > 0.4) {
+    o.push(`<path class="arc-p" d="${arcPath(lx, ly, tr, 0, tilt)}"/>`);
+    const la = Math.max(tilt / 2, 6) * D2R;
+    o.push(`<text class="t" x="${lx + tr + 28}" y="${ly + 17}">Tilt ${f1(tilt)}°</text>`);
+  } else o.push(`<text class="t" x="${lx + tr + 28}" y="${ly + 4}">Tilt 0°</text>`);
+
+  // vertical dims left of row 1
+  const vdim = (x, ya, yb, txt, ex) => {
+    o.push(`<line class="ext" x1="${ex}" y1="${ya}" x2="${x - 5}" y2="${ya}"/><line class="ext" x1="${ex}" y1="${yb}" x2="${x - 5}" y2="${yb}"/>`);
+    o.push(`<line class="dim" x1="${x}" y1="${ya}" x2="${x}" y2="${yb}"/><line class="tick" x1="${x - 5}" y1="${ya + 5}" x2="${x + 5}" y2="${ya - 5}"/><line class="tick" x1="${x - 5}" y1="${yb + 5}" x2="${x + 5}" y2="${yb - 5}"/>`);
+    o.push(`<text class="t" transform="translate(${x - 8} ${(ya + yb) / 2}) rotate(-90)" text-anchor="middle">${txt}</text>`);
+  };
+  vdim(x0 - 48, gy, Y(c), `Clearance ${inch(c)}`, X(0) - 2);
+  vdim(x0 - 100, gy, Y(H), `Top height ${inch(H)}`, X(F));
+
+  // panel length dim on the underside
+  const d = Math.max(12, Math.min(30, 0.8 * c * s / cb));
+  const nx = sb, ny = cb;
+  const p1 = [X(0) + d * nx, Y(c) + d * ny], p2 = [X(F) + d * nx, Y(H) + d * ny];
+  o.push(`<line class="dim" x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}"/>`);
+  o.push(`<line class="tick" x1="${p1[0] - 4}" y1="${p1[1] - 4}" x2="${p1[0] + 4}" y2="${p1[1] + 4}"/><line class="tick" x1="${p2[0] - 4}" y1="${p2[1] - 4}" x2="${p2[0] + 4}" y2="${p2[1] + 4}"/>`);
+  const mx = p1[0] + (p2[0] - p1[0]) * 0.6 + 12 * nx, my = p1[1] + (p2[1] - p1[1]) * 0.6 + 14 * ny;
+  o.push(`<text class="t" transform="translate(${mx} ${my}) rotate(${-tilt})" text-anchor="middle">Panel length ${inch(L)}</text>`);
+
+  // horizontal dims below ground
+  const hdim = (xa, xb, y, txt) => {
+    o.push(`<line class="ext" x1="${xa}" y1="${gy + 4}" x2="${xa}" y2="${y + 5}"/><line class="ext" x1="${xb}" y1="${gy + 4}" x2="${xb}" y2="${y + 5}"/>`);
+    o.push(`<line class="dim" x1="${xa}" y1="${y}" x2="${xb}" y2="${y}"/><line class="tick" x1="${xa - 5}" y1="${y + 5}" x2="${xa + 5}" y2="${y - 5}"/><line class="tick" x1="${xb - 5}" y1="${y + 5}" x2="${xb + 5}" y2="${y - 5}"/>`);
+    o.push(`<text class="t" x="${(xa + xb) / 2}" y="${y + 20}" text-anchor="middle">${txt}</text>`);
+  };
+  hdim(X(0), X(F), gy + 34, `Footprint ${inch(F)}`);
+  if (g > 0.05) hdim(X(F), X(D), gy + 34, `Row gap ${inch(g)}`);
+  hdim(X(0), X(D), gy + 88, `Row pitch ${inch(D)}`);
+  $("svg").innerHTML = o.join("");
+}
+
+// ---- rendering
+function render() {
+  const inp = readInputs(), err = validate(inp);
+  $("msg").textContent = err;
+  if (err) return;
+  const mode = MODES[inp.mode];
+  const r = solve(inp, mode.from, mode.to);
+  const eq = inp.lat >= 0 ? "south" : "north";
+  const az = inp.lat >= 0 ? 180 : 0;
+  const latAbs = Math.abs(inp.lat);
+  const winterNoon = 90 - (latAbs + DECL);
+  const diff = latAbs - DECL;
+  const sum = { summerAlt: (90 - Math.abs(diff)) * D2R, summerFromEq: diff >= 0 };
+
+  if (!Number.isFinite(r.gap)) {
+    $("msg").textContent = "At this latitude the winter sun is below the horizon inside that window. Pick a shorter window.";
+    return;
+  }
+
+  const where = inp.district ? inp.district : "this latitude";
+  $("tiles").innerHTML = [
+    ["Panel azimuth", `${az}<small>° ${eq}</small>`, `True ${eq} for ${where}`],
+    ["Top edge height", `${f1(r.H)}<small>in</small>`, `${ftIn(r.H)}. Rise along the slope ${inch(r.rise)}`],
+    ["Row gap", `${f1(r.gap)}<small>in</small>`, `Clear ground between rows. ${mode.name} window`],
+    ["Row pitch", `${f1(r.pitch)}<small>in</small>`, `${ftIn(r.pitch)}. Ground coverage ${Math.round(r.gcr * 100)}%`]
+  ].map(t => `<div class="tile"><div class="k">${t[0]}</div><div class="v">${t[1]}</div><div class="s">${t[2]}</div></div>`).join("");
+
+  drawSvg(r, inp, sum);
+
+  // comparison
+  let rows = "";
+  for (const k of ["9", "8", "10"]) {
+    const m = MODES[k], x = solve(inp, m.from, m.to);
+    rows += `<tr class="pick ${k === inp.mode ? "sel" : ""}" data-mode="${k}"><td>${m.name}</td><td class="n">${hrLabel(m.from)}–${hrLabel(m.to)}</td><td class="n">${f1(x.gap)}″</td><td class="n">${f1(x.pitch)}″</td><td class="n">${Math.round(x.gcr * 100)}%</td></tr>`;
+  }
+  $("cmp").innerHTML = `<tr><th>Window</th><th>Hours</th><th>Row gap</th><th>Pitch</th><th>Cover</th></tr>${rows}`;
+  document.querySelectorAll("#cmp tr.pick").forEach(tr => tr.addEventListener("click", () => {
+    document.querySelector(`input[name=mode][value="${tr.dataset.mode}"]`).checked = true; render();
+  }));
+
+  // sun angles
+  $("sun").innerHTML = `
+    <dt>Limiting hour (${hrLabel(Math.round(r.hour))}) elevation</dt><dd>${f1(r.alt / D2R)}°</dd>
+    <dt>Its bearing from ${eq}</dt><dd>${f1(Math.abs(r.az) / D2R)}° ${r.az < 0 ? "east" : "west"}</dd>
+    <dt>Angle seen in this side view</dt><dd>${f1(r.prof / D2R)}°</dd>
+    <dt>Winter noon elevation (Dec 21)</dt><dd>${f1(winterNoon)}°</dd>
+    <dt>Summer noon elevation (Jun 21)</dt><dd>${f1(sum.summerAlt / D2R)}° ${sum.summerFromEq ? "" : "(" + (inp.lat >= 0 ? "north" : "south") + " of overhead)"}</dd>
+    <dt>Panel area</dt><dd>${f1(inp.L * inp.W)} in² (${f1(inp.L * inp.W / 144)} ft²)</dd>
+    <dt>Land per panel (pitch × width)</dt><dd>${f1(r.pitch * inp.W / 144)} ft²</dd>`;
+
+  // notes
+  const notes = [];
+  if (inp.tilt * D2R > r.prof + 1e-6) notes.push(`<div class="warn">The tilt (${f1(inp.tilt)}°) is steeper than the winter sun angle at the edge of your window (${f1(r.prof / D2R)}°). The sun reaches the back of the panels at the start and end of that window, so a lower tilt serves those hours better.</div>`);
+  let noon = "";
+  if (inp.lon != null && inp.lat >= 0) {
+    const m = 12 * 60 - 1.9 + (90 - inp.lon) * 4, hh = Math.floor(m / 60), mm = Math.round(m - hh * 60);
+    noon = ` In ${inp.district}, solar noon falls at about ${hh}:${String(mm).padStart(2, "0")} on the clock in late December.`;
+  }
+  notes.push(`<li>Hours are solar time, where the sun is highest at 12:00.${noon}</li>`);
+  notes.push(`<li>Point the panels to true ${eq} (${az}°). If you set out with a compass, correct for the local magnetic declination, which is small in Bangladesh.</li>`);
+  notes.push(`<li>The row gap is sized on Dec 21, the lowest sun of the year, at whichever hour in your window needs the most space. Every other day of winter needs less.</li>`);
+  notes.push(`<li>The drawing is a north–south cut through level ground with rows running east–west. The amber line just clears the lower edge of the next row.</li>`);
+  $("notes").innerHTML = notes.join("").replace(/^<div class="warn">(.*?)<\/div>/, '<li class="warn" style="list-style:none;margin-left:-18px">$1</li>');
+}
+
+// ---- wiring
+fillDistricts();
+$("district").addEventListener("input", () => {
+  const d = lookup($("district").value);
+  if (d) { $("lat").value = d[1]; $("locHint").textContent = `${d[0]}: latitude ${d[1].toFixed(2)}° N, longitude ${d[2].toFixed(2)}° E. Panels face true south (180°).`; }
+  else $("locHint").textContent = $("district").value ? "Not in the list. Type the latitude yourself below." : "";
+  render();
+});
+$("tiltLat").addEventListener("click", () => { const l = Math.abs(parseFloat($("lat").value)); if (Number.isFinite(l)) { $("tilt").value = Math.min(85, Math.round(l * 2) / 2); render(); } });
+["lat", "len", "wid", "tilt", "clr"].forEach(id => $(id).addEventListener("input", render));
+document.querySelectorAll("input[name=mode]").forEach(el => el.addEventListener("change", render));
+$("form").addEventListener("submit", e => { e.preventDefault(); render(); if (innerWidth < 900) $("out").scrollIntoView({ behavior: "smooth", block: "start" }); });
+$("district").dispatchEvent(new Event("input"));
+</script>
